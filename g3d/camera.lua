@@ -90,9 +90,13 @@ function camera.lookInDirection(x,y,z, directionTowards,pitchTowards)
     camera.updateViewMatrix()
 end
 
+function camera:setFOV(fov)
+    camera.fov = fov
+    camera.updateProjectionMatrix(camera.fov, camera.nearClip, camera.farClip, camera.aspectRatio)
+end
 -- recreate the camera's view matrix from its current values
 function camera.updateViewMatrix()
-    camera.viewMatrix:setViewMatrix(camera.position, camera.target, camera.up)
+    --camera.viewMatrix:setViewMatrix(camera.position, camera.target, camera.up)
 end
 
 -- recreate the camera's projection matrix from its current values

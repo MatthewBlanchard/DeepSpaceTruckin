@@ -144,8 +144,8 @@ function AsteroidField:__new(index)
     self.direction = rand * math.abs(1/rand)
     self.color = {math.random()*0.7, math.random()*0.7, math.random()*0.7}
 
-    self.starmesh = g3d.newModel("assets/asteroid.obj")
-    self.starmesh:setScale(3, 3, 3)
+    self.asteroid = g3d.newModel("assets/asteroid.obj")
+    self.asteroid:setScale(3, 3, 3)
     local instance_positions = {}
     for i = 1, 1000 do
         local randomAngle = math.random()*2*math.pi
@@ -163,10 +163,10 @@ function AsteroidField:__new(index)
         {"InstanceMat3", "float", 4}, {"InstanceMat4", "float", 4}
     }, instance_positions, nil, "static")
 
-    self.starmesh.mesh:attachAttribute("InstanceMat1", instancemesh, "perinstance")
-    self.starmesh.mesh:attachAttribute("InstanceMat2", instancemesh, "perinstance")
-    self.starmesh.mesh:attachAttribute("InstanceMat3", instancemesh, "perinstance")
-    self.starmesh.mesh:attachAttribute("InstanceMat4", instancemesh, "perinstance")
+    self.asteroid.mesh:attachAttribute("InstanceMat1", instancemesh, "perinstance")
+    self.asteroid.mesh:attachAttribute("InstanceMat2", instancemesh, "perinstance")
+    self.asteroid.mesh:attachAttribute("InstanceMat3", instancemesh, "perinstance")
+    self.asteroid.mesh:attachAttribute("InstanceMat4", instancemesh, "perinstance")
 
 end
 
@@ -184,8 +184,8 @@ function AsteroidField:draw(time, bgtex)
     if asteroidShader:hasUniform "isCanvasEnabled" then
         asteroidShader:send("isCanvasEnabled", love.graphics.getCanvas() ~= nil)
     end
-    self.starmesh.mesh:setTexture(bgtex)
-    love.graphics.drawInstanced(self.starmesh.mesh, 1300, 0, 0)
+    self.asteroid.mesh:setTexture(bgtex)
+    love.graphics.drawInstanced(self.asteroid.mesh, 1300, 0, 0)
     love.graphics.setShader()
 end
 

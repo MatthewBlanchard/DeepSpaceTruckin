@@ -61,6 +61,7 @@ function love.mousemoved( x, y, dx, dy, istouch )
 end
 
 function love.wheelmoved(x, y)
+    if not view.wheelmoved then return end
     view:wheelmoved(x, y)
 end
 
@@ -83,5 +84,6 @@ function love.keypressed(key)
         end
     end
 
+    if not view.keypressed then return end
     view:keypressed(key)
 end

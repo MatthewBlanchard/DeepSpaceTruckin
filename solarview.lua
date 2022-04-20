@@ -1,13 +1,16 @@
 local Object = require "object"
 local Planet = require "planet"
+local FlightController = require "flightcontroller"
 local moonshine = require "moonshine"
 local g3d = require "g3d"
 local newMatrix = require(g3d.path .. "/matrices")
 local Vector2 = require "vector"
+local mat4 = require "math/mat4"
 
 local sphere = g3d.newModel("assets/sphere.obj", nil, {0, 0, 0}, nil, {10, 10, 10})
 local ring = g3d.newModel("assets/gate.obj")
-local ship = g3d.newModel("assets/model.obj", "assets/space_truck.png")
+local ship = g3d.newModel("assets/Space_Truck.obj", "assets/space_truck.png")
+ship:makeNormals()
 
 local bgtextures = {
     love.graphics.newImage("assets/starfield.png"),
@@ -30,7 +33,7 @@ local shipshader = love.graphics.newShader(g3d.shaderpath, [[
         float s = sin(angle);
         float c = cos(angle);
         float oc = 1.0 - c;
-        
+
         return mat4(oc * axis.x * axis.x + c,           oc * axis.x * axis.y - axis.z * s,  oc * axis.z * axis.x + axis.y * s,  0.0,
                     oc * axis.x * axis.y + axis.z * s,  oc * axis.y * axis.y + c,           oc * axis.y * axis.z - axis.x * s,  0.0,
                     oc * axis.z * axis.x - axis.y * s,  oc * axis.y * axis.z + axis.x * s,  oc * axis.z * axis.z + c,           0.0,
@@ -57,7 +60,7 @@ local shipshader = love.graphics.newShader(g3d.shaderpath, [[
         if (texcolor.a == 0.0) {
             discard;
         }
-        
+
         return vec4((diffuse + texcolor.xyz/3) * Texel(tex, texcoord).xyz, 1.);
     }
 ]])
@@ -70,12 +73,12 @@ local skyboxshader = love.graphics.newShader(g3d.shaderpath, [[
         vec3 reference = vec3(0., 0., 1.);
 
         vec4 texcolor = Texel(tex, vec2(0., dot(reference, abs(vertexNormal.xyz))));
-        
+
         // get rid of transparent pixels
         if (texcolor.a == 0.0) {
             discard;
         }
-        
+
         return texcolor * color;
     }
 ]])
@@ -110,7 +113,7 @@ local billboardshader = love.graphics.newShader [[
             modelView[2][0] = 0.0;
             modelView[2][1] = 0.0;
             modelView[2][2] = 1.0;
-            
+
             vec4 screenpos = projectionMatrix * modelView * vertex_position;
             // for some reason models are flipped vertically when rendering to a canvas
             // so we need to detect when this is being rendered to a canvas, and flip it back
@@ -136,10 +139,10 @@ SolarView = Object:extend()
 local function CreateCircle(segments, diameter)
 	segments = segments or 40
 	local vertices = {}
-	
+
 	-- The first vertex is at the origin (0, 0) and will be the center of the circle.
 	table.insert(vertices, {0, 0})
-	
+
 	-- Create the vertices at the edge of the circle.
 	for i=0, segments do
 		local angle = (i / segments) * math.pi * 2
@@ -150,13 +153,14 @@ local function CreateCircle(segments, diameter)
 
 		table.insert(vertices, {x, y})
 	end
-	
+
 	-- The "fan" draw mode is perfect for our circle.
 	return love.graphics.newMesh(vertices, "fan", "static")
 end
 
 function SolarView:__new(star)
     self.star = star
+    self.flightController = FlightController()
     self.moonshine = moonshine(moonshine.effects.glow)
     self.starmesh = CreateCircle(3, 100)
     self.background = g3d.newModel("assets/sphere.obj", nil, {0,0,0}, nil, {90000,90000,90000})
@@ -176,23 +180,25 @@ function SolarView:__new(star)
 end
 
 function SolarView:mousemoved(x,y, dx,dy)
-    g3d.camera.firstPersonLook(dx/20,dy/20)
+    self.flightController:mousemoved(dx, dy)
 end
 
 function SolarView:update(dt)
     timer = timer + dt
     self.background:setTranslation(g3d.camera.position[1], g3d.camera.position[2], g3d.camera.position[3])
-    g3d.camera.firstPersonMovement(dt)
+    self.flightController:update(dt)
     if love.keyboard.isDown("escape") then love.event.push("quit") end
 end
 
 function SolarView:draw(time)
     --self.moonshine(function()
+        g3d.camera.viewMatrix = self.flightController:getViewMatrix()
         love.graphics.setShader()
         love.graphics.setColor(1, 1, 1)
         love.graphics.setDepthMode("always", true)
         self.background:draw(skyboxshader)
 
+        love.graphics.setColor(1, 1, 1, 0.5)
         love.graphics.setShader(billboardshader)
         billboardshader:send("modelMatrix", newMatrix())
         billboardshader:send("viewMatrix", g3d.camera.viewMatrix)
@@ -212,7 +218,7 @@ function SolarView:draw(time)
         for star, hyperlane in pairs(self.star.hyperlanes) do
             local dirto = (star.position - self.star.position):normalize()
             local orbitaloffset = love.math.noise(star.position.x, star.position.y) - 0.5
-            
+
             local angle = math.atan2(dirto.x, dirto.y) + math.rad(90)
             local x, y = math.cos(angle), math.sin(angle)
             ring:setRotation(angle, math.rad(90), 0)
@@ -229,30 +235,28 @@ function SolarView:draw(time)
         love.graphics.setColor(1, 1, 1)
         love.graphics.print(love.timer.getFPS( ))
 
-        
+
         love.graphics.setColor(1, 1, 1)
         shipshader:send("environment", self.background.mesh:getTexture())
-        ship:setTranslation(20, 20, 3)
-        ship:setRotation(math.rad(90), 0, 0)
-        ship:setScale(0.1)
+        ship.matrix = self.flightController:getFirstPersonViewMatrix():invert() * mat4:fromScale(0.1)
         ship:draw(shipshader)
 
         local count = 0
         for i, cargo in pairs(self.star.agents) do
-            if cargo.laststar == self.star then 
+            if cargo.laststar == self.star then
                 --print(self.star, cargo.container, self.star.neighbours[cargo.heading[2]], self.star.hyperlanes[cargo.heading[2]])
             end
             if not cargo.laststar then return end
             if not cargo.heading[2] then return end
 
             local fromlane = self.star.hyperlanes[cargo.laststar]
-            
-            local dirto = (cargo.laststar.position - self.star.position):normalize()            
+
+            local dirto = (cargo.laststar.position - self.star.position):normalize()
             local x, y = math.cos(angle), math.sin(angle)
             local ringdist =  math.max(40 + #self.star.planets *20, 100)
             local frompos = Vector2(dirto.x * ringdist, dirto.y * ringdist)
 
-            local dirto = (cargo.heading[2].position - self.star.position):normalize()            
+            local dirto = (cargo.heading[2].position - self.star.position):normalize()
             local x, y = math.cos(angle), math.sin(angle)
             local ringdist =  math.max(40 + #self.star.planets *20, 100)
             local topos = Vector2(dirto.x * ringdist, dirto.y * ringdist)
@@ -261,9 +265,9 @@ function SolarView:draw(time)
 
             love.graphics.setColor(1, 1, 1)
             shipshader:send("environment", self.background.mesh:getTexture())
-            ship:setTranslation(lerped.x, lerped.y, 0)
+            ship:setTranslation(-self.flightController.x, -self.flightController.y, 0)
             ship:setRotation(math.rad(90), 0, 0)
-            ship:setScale(0.1)
+            ship:setScale(1)
             --ship:draw(shipshader)
         end
     --end)
